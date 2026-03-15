@@ -1,0 +1,13 @@
+{
+  "bannerField": "art",
+  "showField": "banner",
+  "bannerHeight": 350,
+  "contentStartPosition": 355,
+  "bannerMaxWidth": 2560,
+  "xPosition": 50,
+  "yPosition": 10,
+  "fade": -50,
+  "borderRadius": 0,
+  "bannerGap": 1,
+  "showInPopover": false
+}

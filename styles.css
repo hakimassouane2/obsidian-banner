@@ -1,0 +1,65 @@
+/* ── Banner fade-in animation ── */
+@keyframes ob-banner-fade-in {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+/* ── Kill native padding on reading view scroll container ── */
+.view-content.ob-banner > .markdown-reading-view .markdown-preview-view {
+    padding-top: 0 !important;
+}
+
+/* ── Banner element – inside reading view scroll container, normal flow ── */
+.ob-banner-image {
+    display: block;
+    box-sizing: border-box;
+    width: calc(100% + var(--ob-banner-parent-pad-l, 0px) + var(--ob-banner-parent-pad-r, 0px) - 2 * var(--ob-banner-gap, 0px));
+    max-width: none;
+    height: var(--ob-banner-height, 350px);
+    margin-top: var(--ob-banner-gap, 0px);
+    margin-left: calc(-1 * var(--ob-banner-parent-pad-l, 0px) + var(--ob-banner-gap, 0px));
+    margin-right: calc(-1 * var(--ob-banner-parent-pad-r, 0px) + var(--ob-banner-gap, 0px));
+    margin-bottom: 0;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: var(--ob-banner-x-position, 50%) var(--ob-banner-y-position, 50%);
+    border-radius: var(--ob-banner-radius, 0px);
+    overflow: hidden;
+    animation: ob-banner-fade-in 300ms ease-in-out;
+    mask-image: linear-gradient(to bottom, black calc(100% + var(--ob-banner-fade, -75%)), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% + var(--ob-banner-fade, -75%)), transparent);
+    pointer-events: none;
+    flex-shrink: 0;
+}
+
+/* No gap = flush to top */
+.ob-banner-image[style*="--ob-banner-gap: 0px"] {
+    margin-top: 0;
+}
+
+/* ── Reading view: banner is in flow, no extra padding needed on sizer ── */
+.view-content.ob-banner > .markdown-reading-view .markdown-preview-view > .ob-banner-image + .markdown-preview-sizer {
+    padding-top: 0 !important;
+}
+
+/* Hide the inline title top spacing when banner is present */
+.view-content.ob-banner .inline-title {
+    margin-top: 0 !important;
+}
+
+/* ── Popover support ── */
+.hover-popover .ob-banner-image {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: var(--ob-banner-radius, 0px) !important;
+    margin: 0 !important;
+}
+
+.hover-popover .markdown-preview-view.ob-banner-popover .markdown-preview-sizer {
+    padding-top: var(--ob-banner-content-start, 150px) !important;
+}

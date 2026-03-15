@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-banner",
+  "name": "Banner",
+  "version": "1.0.0",
+  "minAppVersion": "1.6.0",
+  "description": "Add customizable banner images to your notes using frontmatter and wikilinks.",
+  "author": "You",
+  "isDesktopOnly": false
+}
