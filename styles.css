@@ -63,3 +63,113 @@
 .hover-popover .markdown-preview-view.ob-banner-popover .markdown-preview-sizer {
     padding-top: var(--ob-banner-content-start, 150px) !important;
 }
+
+/* ── Reposition UI ── */
+
+/* Hover zone – captures pointer events on banner */
+.ob-banner-hover-zone {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: auto;
+    opacity: 0;
+    transition: opacity 150ms ease;
+}
+
+.ob-banner-hover-zone:hover {
+    opacity: 1;
+}
+
+/* The Reposition button */
+.ob-banner-reposition-btn {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-on-accent);
+    background: var(--interactive-accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.9;
+    z-index: 10;
+}
+
+.ob-banner-reposition-btn:hover {
+    opacity: 1;
+    background: var(--interactive-accent-hover);
+}
+
+/* Banner needs position:relative for overlay children */
+.ob-banner-image {
+    position: relative;
+}
+
+/* When repositioning, enable pointer events and show grab cursor */
+.ob-banner-image.ob-banner-repositioning {
+    pointer-events: auto !important;
+    cursor: grab;
+}
+
+.ob-banner-image.ob-banner-dragging {
+    cursor: grabbing !important;
+}
+
+/* Save / Cancel toolbar */
+.ob-banner-reposition-toolbar {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+    pointer-events: auto;
+}
+
+.ob-banner-save-btn,
+.ob-banner-cancel-btn {
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.ob-banner-save-btn {
+    color: var(--text-on-accent);
+    background: var(--interactive-accent);
+}
+
+.ob-banner-save-btn:hover {
+    background: var(--interactive-accent-hover);
+}
+
+.ob-banner-cancel-btn {
+    color: var(--text-normal);
+    background: var(--background-modifier-hover);
+}
+
+.ob-banner-cancel-btn:hover {
+    background: var(--background-modifier-active-hover, var(--background-modifier-hover));
+}
+
+/* Drag tooltip */
+.ob-banner-drag-tooltip {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 6px 16px;
+    font-size: 13px;
+    color: var(--text-on-accent);
+    background: rgba(0, 0, 0, 0.65);
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 10;
+    user-select: none;
+}

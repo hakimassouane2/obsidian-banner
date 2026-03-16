@@ -8,6 +8,7 @@ const { Plugin, PluginSettingTab, Setting, debounce } = require("obsidian");
 const DEFAULT_SETTINGS = {
     bannerField: "art",
     showField: "banner",
+    yPositionField: "banner-y",
     bannerHeight: 350,
     contentStartPosition: 355,
     bannerMaxWidth: 2560,
@@ -152,11 +153,15 @@ class BannerPlugin extends Plugin {
             this._urlCache.set(imageFile.path, imageUrl);
         }
 
+        // Per-note Y position from frontmatter (overrides global)
+        const perNoteY = frontmatter ? frontmatter[this.settings.yPositionField] : null;
+        const yPosition = (typeof perNoteY === "number") ? perNoteY : this.settings.yPosition;
+
         viewContent.classList.add("ob-banner");
-        this.applyStyles(viewContent);
+        this.applyStyles(viewContent, yPosition);
 
         // Inject banner into reading view only (not editing mode)
-        this.ensureBanner(viewContent, ".markdown-reading-view .markdown-preview-view", ".markdown-preview-sizer", imageUrl);
+        this.ensureBanner(viewContent, ".markdown-reading-view .markdown-preview-view", ".markdown-preview-sizer", imageUrl, file);
 
         // Remove any stale banner from editing view
         const cmScroller = viewContent.querySelector(".markdown-source-view .cm-scroller");
@@ -166,11 +171,15 @@ class BannerPlugin extends Plugin {
         }
     }
 
-    ensureBanner(viewContent, scrollContainerSel, sizerSel, imageUrl) {
+    ensureBanner(viewContent, scrollContainerSel, sizerSel, imageUrl, file) {
         const scrollContainer = viewContent.querySelector(scrollContainerSel);
         if (!scrollContainer) return;
 
         let bannerDiv = scrollContainer.querySelector(":scope > .ob-banner-image");
+
+        // Don't touch the banner while repositioning (avoid clobbering drag state)
+        if (bannerDiv && bannerDiv.classList.contains("ob-banner-repositioning")) return;
+
         if (!bannerDiv) {
             bannerDiv = createDiv({ cls: "ob-banner-image" });
             const sizer = scrollContainer.querySelector(`:scope > ${sizerSel.split(" ").pop()}`);
@@ -182,12 +191,129 @@ class BannerPlugin extends Plugin {
         }
 
         bannerDiv.style.backgroundImage = `url('${imageUrl}')`;
+        if (file) bannerDiv.dataset.filePath = file.path;
 
         // Measure parent padding so CSS can counter it for edge-to-edge display
         const cs = getComputedStyle(scrollContainer);
         bannerDiv.style.setProperty("--ob-banner-parent-pad-t", cs.paddingTop);
         bannerDiv.style.setProperty("--ob-banner-parent-pad-l", cs.paddingLeft);
         bannerDiv.style.setProperty("--ob-banner-parent-pad-r", cs.paddingRight);
+
+        // Add reposition button if not already present
+        this._ensureRepositionButton(bannerDiv, viewContent);
+    }
+
+    // ── Reposition UI ────────────────────────────────────────────────────────
+
+    _ensureRepositionButton(bannerDiv, viewContent) {
+        if (bannerDiv.querySelector(".ob-banner-reposition-btn")) return;
+
+        // Wrapper for hover zone (sits on top of banner)
+        const hoverZone = createDiv({ cls: "ob-banner-hover-zone" });
+
+        const btn = createEl("button", { cls: "ob-banner-reposition-btn", text: "Reposition" });
+        hoverZone.appendChild(btn);
+        bannerDiv.appendChild(hoverZone);
+
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this._enterRepositionMode(bannerDiv, viewContent);
+        });
+    }
+
+    _enterRepositionMode(bannerDiv, viewContent) {
+        if (bannerDiv.classList.contains("ob-banner-repositioning")) return;
+
+        // Read current Y position
+        const currentVar = viewContent.style.getPropertyValue("--ob-banner-y-position");
+        const startY = parseFloat(currentVar) || this.settings.yPosition;
+        let currentY = startY;
+
+        bannerDiv.classList.add("ob-banner-repositioning");
+
+        // Hide the reposition button, show save/cancel bar
+        const hoverZone = bannerDiv.querySelector(".ob-banner-hover-zone");
+        if (hoverZone) hoverZone.style.display = "none";
+
+        const toolbar = createDiv({ cls: "ob-banner-reposition-toolbar" });
+        const saveBtn = createEl("button", { cls: "ob-banner-save-btn", text: "Save Position" });
+        const cancelBtn = createEl("button", { cls: "ob-banner-cancel-btn", text: "Cancel" });
+        toolbar.appendChild(saveBtn);
+        toolbar.appendChild(cancelBtn);
+        bannerDiv.appendChild(toolbar);
+
+        // Drag tooltip
+        const tooltip = createDiv({ cls: "ob-banner-drag-tooltip", text: "Drag to reposition" });
+        bannerDiv.appendChild(tooltip);
+
+        // ── Drag logic ──
+        let isDragging = false;
+        let dragStartMouseY = 0;
+        let dragStartY = currentY;
+
+        const onMouseDown = (e) => {
+            if (e.target.closest(".ob-banner-reposition-toolbar")) return;
+            e.preventDefault();
+            isDragging = true;
+            dragStartMouseY = e.clientY;
+            dragStartY = currentY;
+            bannerDiv.classList.add("ob-banner-dragging");
+        };
+
+        const onMouseMove = (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            const deltaY = e.clientY - dragStartMouseY;
+            const bannerHeight = bannerDiv.offsetHeight;
+            // Dragging down → decrease Y (show more of top), dragging up → increase Y
+            const sensitivity = 100;
+            currentY = Math.max(0, Math.min(100, dragStartY - (deltaY / bannerHeight) * sensitivity));
+            viewContent.style.setProperty("--ob-banner-y-position", `${currentY}%`);
+            tooltip.textContent = `Y: ${Math.round(currentY)}%`;
+        };
+
+        const onMouseUp = () => {
+            if (!isDragging) return;
+            isDragging = false;
+            bannerDiv.classList.remove("ob-banner-dragging");
+            tooltip.textContent = "Drag to reposition";
+        };
+
+        bannerDiv.addEventListener("mousedown", onMouseDown);
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+
+        // ── Save ──
+        saveBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            cleanup();
+            const filePath = bannerDiv.dataset.filePath;
+            const file = this.app.vault.getAbstractFileByPath(filePath);
+            if (file) {
+                const yField = this.settings.yPositionField;
+                const yVal = Math.round(currentY);
+                this.app.fileManager.processFrontMatter(file, (fm) => {
+                    fm[yField] = yVal;
+                });
+            }
+        });
+
+        // ── Cancel ──
+        cancelBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            viewContent.style.setProperty("--ob-banner-y-position", `${startY}%`);
+            cleanup();
+        });
+
+        const cleanup = () => {
+            bannerDiv.classList.remove("ob-banner-repositioning", "ob-banner-dragging");
+            bannerDiv.removeEventListener("mousedown", onMouseDown);
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+            toolbar.remove();
+            tooltip.remove();
+            if (hoverZone) hoverZone.style.display = "";
+        };
     }
 
     removeBanner(viewContent) {
@@ -196,13 +322,14 @@ class BannerPlugin extends Plugin {
         this.cleanCssVars(viewContent);
     }
 
-    applyStyles(viewContent) {
+    applyStyles(viewContent, yPosition) {
         const s = this.settings;
+        const yPos = (typeof yPosition === "number") ? yPosition : s.yPosition;
         const vars = {
             "--ob-banner-height": `${s.bannerHeight}px`,
             "--ob-banner-max-width": s.bannerMaxWidth <= 0 ? "unset" : `${s.bannerMaxWidth}px`,
             "--ob-banner-x-position": `${s.xPosition}%`,
-            "--ob-banner-y-position": `${s.yPosition}%`,
+            "--ob-banner-y-position": `${yPos}%`,
             "--ob-banner-fade": `${s.fade}%`,
             "--ob-banner-radius": `${s.borderRadius}px`,
             "--ob-banner-gap": `${s.bannerGap}px`,
@@ -267,6 +394,20 @@ class BannerSettingTab extends PluginSettingTab {
                         })
                 ),
             "showField"
+        );
+
+        this.addResetButton(
+            new Setting(containerEl)
+                .setName("Y position field")
+                .setDesc("Frontmatter field for per-note vertical position (saved by the Reposition button).")
+                .addText((text) =>
+                    text.setPlaceholder("banner-y").setValue(this.plugin.settings.yPositionField)
+                        .onChange(async (value) => {
+                            this.plugin.settings.yPositionField = value.trim() || "banner-y";
+                            await this.plugin.saveSettings();
+                        })
+                ),
+            "yPositionField"
         );
 
         containerEl.createEl("h2", { text: "Display" });
@@ -379,8 +520,10 @@ class BannerSettingTab extends PluginSettingTab {
         // ── Quick reference ──
         containerEl.createEl("h2", { text: "Quick reference" });
         const showField = this.plugin.settings.showField;
+        const yField = this.plugin.settings.yPositionField;
         const desc = containerEl.createEl("p", { cls: "setting-item-description" });
-        desc.innerHTML = `To hide the banner on a specific note, add <code>${showField}: false</code> to its frontmatter.`;
+        desc.innerHTML = `To hide the banner on a specific note, add <code>${showField}: false</code> to its frontmatter.<br>` +
+            `To set a per-note vertical position, use the <strong>Reposition</strong> button on the banner, or manually add <code>${yField}: 0-100</code> to frontmatter.`;
     }
 }
 
