@@ -110,6 +110,14 @@ class BannerPlugin extends Plugin {
         const file = view.file;
         if (!file) return;
 
+        // Skip popover views if setting is disabled
+        const isPopover = leaf.containerEl?.closest(".hover-popover") !== null;
+        if (isPopover && !this.settings.showInPopover) {
+            const viewContent = view.containerEl.querySelector(".view-content");
+            if (viewContent) this.removeBanner(viewContent);
+            return;
+        }
+
         const viewContent = view.containerEl.querySelector(".view-content");
         if (!viewContent) return;
 
